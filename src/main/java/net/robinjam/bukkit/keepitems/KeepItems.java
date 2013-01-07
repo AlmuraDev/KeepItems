@@ -43,8 +43,7 @@ public class KeepItems extends JavaPlugin implements Listener {
 		
 	@EventHandler(priority = EventPriority.LOW)
 	public void onPlayerDeath(final PlayerDeathEvent event) {
-		final Player player = event.getEntity();
-		System.out.println("Death Detected");
+		final Player player = event.getEntity();		
 		// Check if the player has permission for this death cause
 		EntityDamageEvent e = player.getLastDamageCause();
 		if (e == null) {
