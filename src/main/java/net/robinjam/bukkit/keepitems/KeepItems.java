@@ -27,6 +27,7 @@ import org.bukkit.plugin.java.JavaPlugin;
  * The main plugin class.
  * 
  * @author robinjam
+ * @author modified by Dockter
  */
 public class KeepItems extends JavaPlugin implements Listener {
 	
@@ -37,81 +38,20 @@ public class KeepItems extends JavaPlugin implements Listener {
 		// Load config.yml
 		getConfig().options().copyDefaults(true);
 		saveConfig();
-		
-		// Register events and permissions
-		getServer().getPluginManager().registerEvents(this, this);
-		registerPermissions();
+		getServer().getPluginManager().registerEvents(this, this);		
 	}
-	
-	/**
-	 * Registers the additional dynamic permissions required by this plugin, which cannot be included in the plugin.yml file.
-	 */
-	public void registerPermissions() {
-		Map<String, Boolean> children = new HashMap<String, Boolean>();
 		
-		// Register keep-items.cause.<type> for each damage cause
-		for (DamageCause cause : DamageCause.values()) {
-			Permission p = new Permission("keep-items.cause." + cause.name().toLowerCase(), "Allows the player to keep their items and experience when they are killed by " + cause.name().toLowerCase(), PermissionDefault.FALSE);
-			getServer().getPluginManager().addPermission(p);
-			children.put(p.getName(), true);
-		}
-		
-		// Register keep-items.cause.*
-		getServer().getPluginManager().addPermission(new Permission("keep-items.cause.*", "Allows the player to keep their items and experience when they die for any reason", PermissionDefault.TRUE, children));
-		
-		children.clear();
-		
-		// Register keep-items.entity.<type> for each entity type
-		for (EntityType type : EntityType.values()) {
-			Permission p = new Permission("keep-items.entity." + type.name().toLowerCase(), "Allows the player to keep their items and experience when they are killed by " + type.name().toLowerCase(), PermissionDefault.FALSE);
-			getServer().getPluginManager().addPermission(p);
-			children.put(p.getName(), true);
-		}
-		
-		// Register keep-items.entity.*
-		getServer().getPluginManager().addPermission(new Permission("keep-items.entity.*", "Allows the player to keep their items and experience when they are killed by any entity type", PermissionDefault.TRUE, children));
-		
-		children.clear();
-		
-		// Register keep-items.item.<id> for each item type
-		for (Material type : Material.values()) {
-			Permission p = new Permission("keep-items.item." + type.getId(), "Allows the player to keep " + type.toString(), PermissionDefault.FALSE);
-			getServer().getPluginManager().addPermission(p);
-			children.put(p.getName(), true);
-		}
-		
-		// Register keep-items.item.*
-		getServer().getPluginManager().addPermission(new Permission("keep-items.item.*", "Allows the player to keep any type of item", PermissionDefault.TRUE, children));
-	}
-	
-	@EventHandler(priority = EventPriority.HIGH)
+	@EventHandler(priority = EventPriority.LOW)
 	public void onPlayerDeath(final PlayerDeathEvent event) {
 		final Player player = event.getEntity();
-		
+		System.out.println("Death Detected");
 		// Check if the player has permission for this death cause
 		EntityDamageEvent e = player.getLastDamageCause();
 		if (e == null) {
 			System.err.println("[KeepItems] Player " + player.getName() + " died due to an unknown cause. It is therefore impossible to determine whether or not they have permission to keep their items. Their items and experience will be dropped at their death location (" + formatLocation(player.getLocation()) + ").");
 			return;
 		}
-		if (!player.hasPermission("keep-items.cause." + e.getCause().name().toLowerCase()))
-			return;
-		
-		// If the player was killed by an entity, check whether they have permission for that entity
-		if (e instanceof EntityDamageByEntityEvent) {
-			Entity damager = ((EntityDamageByEntityEvent) e).getDamager();
 			
-			// If the player was killed by a projectile, try to work out which entity shot it
-			if (damager instanceof Projectile) {
-				Entity shooter = ((Projectile) damager).getShooter();
-				if (shooter != null)
-					damager = shooter;
-			}
-			
-			if (!player.hasPermission("keep-items.entity." + damager.getType().name().toLowerCase()))
-				return;
-		}
-		
 		// Experience
 		if (player.hasPermission("keep-items.level")) {
 			if (player.hasPermission("keep-items.progress"))
@@ -124,8 +64,7 @@ public class KeepItems extends JavaPlugin implements Listener {
 		
 		// Armour
 		if (player.hasPermission("keep-items.armor")) {
-			final ItemStack[] armor = player.getInventory().getArmorContents();
-			
+			final ItemStack[] armor = player.getInventory().getArmorContents();			
 			Bukkit.getScheduler().scheduleSyncDelayedTask(this, new Runnable() {
 
 				@Override
@@ -141,23 +80,24 @@ public class KeepItems extends JavaPlugin implements Listener {
 		}
 		
 		// Items
-		final ItemStack[] inventory = player.getInventory().getContents();
-		for (int i = 0; i < inventory.length; i++) {
-			ItemStack is = inventory[i];
-			
-			if (is != null && player.hasPermission("keep-items.item." + is.getTypeId()) && random.nextDouble() > getConfig().getDouble("drop-chance"))
-				event.getDrops().remove(is);
-			else
-				inventory[i] = null;
-		}
-		Bukkit.getScheduler().scheduleSyncDelayedTask(this, new Runnable() {
-
-			@Override
-			public void run() {
-				player.getInventory().setContents(inventory);
+		if (player.hasPermission("keep-items.items")) {
+			final ItemStack[] inventory = player.getInventory().getContents();
+			for (int i = 0; i < inventory.length; i++) {
+				ItemStack is = inventory[i];			
+				if (is != null)
+					event.getDrops().remove(is);
+				else
+					inventory[i] = null;
 			}
-			
-		});
+			Bukkit.getScheduler().scheduleSyncDelayedTask(this, new Runnable() {
+
+				@Override
+				public void run() {
+					player.getInventory().setContents(inventory);
+				}
+
+			});
+		}
 	}
 	
 	/**
